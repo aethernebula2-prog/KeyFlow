@@ -67,7 +67,7 @@ h1{font-size:clamp(36px,6vw,64px);letter-spacing:-.055em;line-height:1.02;margin
     <div class="spacer"></div>
     <span class="status" id="loadStatus">Ready</span>
     <button id="tracksBtn" class="iconbtn" title="Show or hide tracks" aria-label="Tracks">≡</button>
-    <button id="hideBtn" class="iconbtn" title="Hide controls" aria-label="Hide controls">◌</button>
+    <button id="hideBtn" class="iconbtn" title="Hide controls" aria-label="Hide controls">߫</button>
     <button id="fullscreenBtn" class="iconbtn" title="Toggle fullscreen" aria-label="Toggle fullscreen">⛶</button>
     <button id="newFileBtn" title="Choose another MIDI">Open MIDI</button>
     <input id="fileInput2" type="file" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
@@ -80,8 +80,8 @@ h1{font-size:clamp(36px,6vw,64px);letter-spacing:-.055em;line-height:1.02;margin
     <div id="trackMenu"><strong style="font-size:12px">Visible tracks</strong><div id="trackList"></div></div>
   </main>
   <footer id="controls">
-    <button id="playBtn" aria-label="Play or pause" title="Play / Pause (Space)">▶</button>
-    <button id="stopBtn" class="iconbtn" title="Stop and return to start" aria-label="Stop">■</button>
+    <button id="playBtn" aria-label="Play or pause" title="Play / Pause (Space)">▷</button>
+    <button id="stopBtn" class="iconbtn" title="Stop and return to start" aria-label="Stop">□</button>
     <span id="timeLabel">00:00 / 00:00</span>
     <div id="seekWrap"><input id="seek" type="range" min="0" max="1000" value="0" aria-label="Playback position"></div>
     <select id="speed" class="smallselect" aria-label="Playback speed" title="Playback speed"><option value=".5">0.5×</option><option value=".75">0.75×</option><option value="1" selected>1.0×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2.0×</option></select>
