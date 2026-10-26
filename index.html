@@ -114,8 +114,8 @@ async function requestFullscreen(){
 }
 function toggleFullscreen(){if(document.fullscreenElement)document.exitFullscreen?.();else requestFullscreen()}
 function openPicker(input){input.click()}
-$("selectBtn").addEventListener("click",()=>{requestFullscreen();openPicker(fileInput)});
-$("emptySelect").addEventListener("click",()=>{requestFullscreen();openPicker(fileInput2)});
+$("selectBtn").addEventListener("click",()=>openPicker(fileInput));
+$("emptySelect").addEventListener("click",()=>openPicker(fileInput2));
 $("newFileBtn").addEventListener("click",()=>openPicker(fileInput2));
 $("fullscreenBtn").addEventListener("click",toggleFullscreen);
 $("hintFullscreen").addEventListener("click",requestFullscreen);
