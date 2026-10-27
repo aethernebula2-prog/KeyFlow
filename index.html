@@ -154,13 +154,14 @@ const LOW = 21, HIGH = 108, RANGE = HIGH - LOW + 1;
 let transposeSemitones = 0;
 let displayLow = LOW;
 let displayHigh = HIGH;
-let displayWhitePitches = WHITE_PITCHES;
+let displayWhitePitches = [];
 const palette = ["#8b7cff","#56c9ff","#ff7ab6","#69e0b1","#ffc66d","#a9a0ff","#6fe0ed","#ff9587"];
 const isBlack = n => [1,3,6,8,10].includes(n % 12);
 const WHITE_PITCHES = Array.from(
   { length: RANGE },
   (_, i) => LOW + i
 ).filter(m => !isBlack(m));
+displayWhitePitches = WHITE_PITCHES;
 
 function pianoKeyCenter(midi, width) {
   const whiteW = width / displayWhitePitches.length;
