@@ -209,29 +209,32 @@ function resizeCanvas(){
 }
 function getActiveNotes(){return notes}
 function draw(){
-  if(!canvasW||!canvasH)return
-  ctx.clearRect(0,0,canvasW,canvasH);
-  const w=canvasW,h=canvasH, usableH=keyTop;
-  // Subtle piano-roll lanes and horizontal timing guides.
-  const keyboardWhiteW = w / whiteNotes.length;
+  if(!canvasW || !canvasH) return;
 
+  ctx.clearRect(0, 0, canvasW, canvasH);
+
+  const w = canvasW;
+  const h = canvasH;
+  const usableH = keyTop;
+
+  // Real piano layout: 52 white keys and 36 black keys.
+  const laneWhiteW = w / WHITE_PITCHES.length;
+
+  // Draw waterfall lanes using the same layout as the keyboard.
   for(let i = 0; i < WHITE_PITCHES.length; i++){
     const m = WHITE_PITCHES[i];
-    const x = i * keyboardWhiteW;
+    const x = i * laneWhiteW;
 
-    // Subtle alternating lanes for black-key pitches.
-    const nextWhite = WHITE_PITCHES[i + 1];
-    if(nextWhite !== undefined){
-      const blackPitch = m + 1;
-      if(isBlack(blackPitch)){
-        const bx = pianoKeyCenter(blackPitch, w);
-        const bw = pianoKeyWidth(blackPitch, w);
-        ctx.fillStyle = "#ffffff05";
-        ctx.fillRect(bx - bw / 2, 0, bw, usableH);
-      }
+    const blackPitch = m + 1;
+
+    if(isBlack(blackPitch) && blackPitch <= HIGH){
+      const bx = pianoKeyCenter(blackPitch, w);
+      const bw = pianoKeyWidth(blackPitch, w);
+
+      ctx.fillStyle = "#ffffff05";
+      ctx.fillRect(bx - bw / 2, 0, bw, usableH);
     }
 
-    // Vertical lines at white-key boundaries.
     ctx.strokeStyle = "#ffffff0c";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -239,7 +242,6 @@ function draw(){
     ctx.lineTo(x, usableH);
     ctx.stroke();
 
-    // Stronger octave divider at each C key.
     if(m % 12 === 0){
       ctx.strokeStyle = "#ffffff20";
       ctx.beginPath();
@@ -248,66 +250,111 @@ function draw(){
       ctx.stroke();
     }
   }
-  // Right edge of the final white-key lane.
+
   ctx.strokeStyle = "#ffffff0c";
   ctx.beginPath();
   ctx.moveTo(w, 0);
   ctx.lineTo(w, usableH);
   ctx.stroke();
-  const secondsVisible=usableH/pixelsPerSecond;
-  const firstBeat= Math.floor(currentTime*2)/2;
-  for(let t=Math.max(0,firstBeat-1);t<currentTime+secondsVisible;t+=.5){
-    const y=keyTop-(t-currentTime)*pixelsPerSecond;
-    if(y<0||y>keyTop)continue;
-    ctx.strokeStyle=(Math.abs(t-Math.round(t))<.01)?"#ffffff18":"#ffffff0b";
-    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+
+  // Horizontal timing guides.
+  const secondsVisible = usableH / pixelsPerSecond;
+  const firstBeat = Math.floor(currentTime * 2) / 2;
+
+  for(
+    let t = Math.max(0, firstBeat - 1);
+    t < currentTime + secondsVisible;
+    t += 0.5
+  ){
+    const y = keyTop - (t - currentTime) * pixelsPerSecond;
+
+    if(y < 0 || y > keyTop) continue;
+
+    ctx.strokeStyle =
+      Math.abs(t - Math.round(t)) < 0.01
+        ? "#ffffff18"
+        : "#ffffff0b";
+
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
   }
-  const visible=getActiveNotes();
+
+  // Draw falling notes aligned to their actual piano keys.
+  const visible = getActiveNotes();
+
   for(const n of visible){
     const nw = pianoKeyWidth(n.midi, w);
     const x = pianoKeyCenter(n.midi, w) - nw / 2;
-    const y=keyTop-(n.time-currentTime)*pixelsPerSecond-n.duration*pixelsPerSecond;
-    const nh=Math.max(4,n.duration*pixelsPerSecond);
-    if(y>keyTop||y+nh<0)continue;
-    const track=tracks[n.track];const color=track?.color||palette[0];
-    ctx.globalAlpha=.95;ctx.fillStyle=color;
-    roundRect(ctx,x,y,nw,nh,Math.min(5,nw*.22));ctx.fill();
-    ctx.globalAlpha=.35;ctx.fillStyle="#ffffff";roundRect(ctx,x+nw*.16,y+2,Math.max(1,nw*.14),Math.max(0,nh-4),2);ctx.fill();
-    if(nh>24&&nw>25){ctx.globalAlpha=.95;ctx.fillStyle="#101322";ctx.font="10px system-ui";ctx.fillText(n.name,x+5,y+14, nw-8)}
-    ctx.globalAlpha=1;
-  }
-  // Keyboard: white keys first, then black keys above them.
+    const y =
+      keyTop -
+      (n.time - currentTime) * pixelsPerSecond -
+      n.duration * pixelsPerSecond;
 
-  // Realistic 88-key piano keyboard: 52 white keys + 36 black keys.
+    const nh = Math.max(4, n.duration * pixelsPerSecond);
+
+    if(y > keyTop || y + nh < 0) continue;
+
+    const color = tracks[n.track]?.color || palette[0];
+
+    ctx.globalAlpha = 0.95;
+    ctx.fillStyle = color;
+    roundRect(ctx, x, y, nw, nh, Math.min(5, nw * 0.22));
+    ctx.fill();
+
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = "#ffffff";
+    roundRect(
+      ctx,
+      x + nw * 0.16,
+      y + 2,
+      Math.max(1, nw * 0.14),
+      Math.max(0, nh - 4),
+      2
+    );
+    ctx.fill();
+
+    if(nh > 24 && nw > 25){
+      ctx.globalAlpha = 0.95;
+      ctx.fillStyle = "#101322";
+      ctx.font = "10px system-ui";
+      ctx.fillText(n.name, x + 5, y + 14, nw - 8);
+    }
+
+    ctx.globalAlpha = 1;
+  }
+
+  // Prepare the keyboard BEFORE calculating its width.
   const kbH = h - keyTop;
   const whiteNotes = [];
   const blackNotes = [];
-  const whitePitchClasses = [0, 2, 4, 5, 7, 9, 11];
 
   for(let m = LOW; m <= HIGH; m++){
     const pc = m % 12;
 
-    if(!isBlack(m)){
-      whiteNotes.push({m, pc, x});
+    if(isBlack(m)){
+      blackNotes.push({m, pc});
     }else{
-      blackNotes.push({m, pc, x});
+      whiteNotes.push({m, pc});
     }
   }
 
-  // Draw the entire keyboard base.
+  const keyboardWhiteW = w / whiteNotes.length;
+  const blackW = keyboardWhiteW * 0.56;
+  const blackH = kbH * 0.62;
+
+  // Keyboard base.
   ctx.fillStyle = "#f4f5fa";
   ctx.fillRect(0, keyTop, w, kbH);
 
-  // White keys are evenly spaced by their actual white-key sequence,
-  // not by the 88-semitone grid.
-  const whiteW = w / whiteNotes.length;
-
+  // Draw white keys.
   for(let i = 0; i < whiteNotes.length; i++){
     const {m, pc} = whiteNotes[i];
-    const x = i * whiteW;
+    const x = i * keyboardWhiteW;
 
     ctx.fillStyle = "#f7f8fc";
-    ctx.fillRect(x, keyTop, whiteW, kbH);
+    ctx.fillRect(x, keyTop, keyboardWhiteW, kbH);
 
     ctx.strokeStyle = "#8f96a9";
     ctx.lineWidth = 0.8;
@@ -316,7 +363,6 @@ function draw(){
     ctx.lineTo(x, h);
     ctx.stroke();
 
-    // Label C notes at the bottom of the keyboard.
     if(pc === 0 && keyboardWhiteW >= 13){
       ctx.fillStyle = "#5e6478";
       ctx.font = "10px system-ui";
@@ -329,9 +375,10 @@ function draw(){
     }
   }
 
-  // Highlight notes currently playing on the white keys.
+  // Highlight currently playing white keys.
   const activeNow = visible.filter(
-    n => n.time <= currentTime && n.time + n.duration >= currentTime
+    n => n.time <= currentTime &&
+         n.time + n.duration >= currentTime
   );
 
   for(const n of activeNow){
@@ -342,24 +389,25 @@ function draw(){
 
     ctx.globalAlpha = 0.8;
     ctx.fillStyle = tracks[n.track]?.color || palette[0];
-    ctx.fillRect(index * whiteW, keyTop, whiteW, kbH);
+    ctx.fillRect(
+      index * keyboardWhiteW,
+      keyTop,
+      keyboardWhiteW,
+      kbH
+    );
     ctx.globalAlpha = 1;
   }
 
-  // Black keys sit between the correct white keys.
-  const blackW = keyboardWhiteW * 0.56;
-  const blackH = kbH * 0.62;
-
-  for(const {m, pc} of blackNotes){
+  // Draw black keys over the white keys.
+  for(const {m} of blackNotes){
     const index = whiteNotes.findIndex(k => k.m > m);
-
     if(index < 0) continue;
 
-    const x = index * whiteW - blackW / 2;
-    const active = activeNow.some(n => n.midi === m);
+    const x = index * keyboardWhiteW - blackW / 2;
+    const activeNote = activeNow.find(n => n.midi === m);
 
-    ctx.fillStyle = active
-      ? (tracks[activeNow.find(n => n.midi === m)?.track]?.color || "#8b7cff")
+    ctx.fillStyle = activeNote
+      ? (tracks[activeNote.track]?.color || "#8b7cff")
       : "#171a27";
 
     roundRect(ctx, x, keyTop, blackW, blackH, 2);
@@ -369,29 +417,31 @@ function draw(){
     ctx.lineWidth = 0.8;
     ctx.stroke();
   }
-  
+
+  // Advance playback and schedule audio.
   if(playing){
     currentTime = playbackPosition();
-    
+
     if(currentTime >= duration){
       currentTime = duration;
       pausePlayback();
     }else{
       scheduleNotes(
         currentTime,
-        currentTime + .12 * Number($("speed").value || 1)
+        currentTime + 0.12 * Number($("speed").value || 1)
       );
     }
-    
+
     updateTime();
-    
+
     if(!$("seek").matches(":active")){
-      $("seek").value = duration ? currentTime / duration * 1000 : 0;
+      $("seek").value = duration
+        ? currentTime / duration * 1000
+        : 0;
     }
+  }
 }
 
-  
-}
 function roundRect(c,x,y,w,h,r){if(w<=0||h<=0)return;c.beginPath();c.roundRect(x,y,w,h,Math.min(r,w/2,h/2));}
 function playbackPosition(){return startPosition+(performance.now()-startedAt)/1000*Number($("speed").value||1)}
 function updateTime(){$("timeLabel").textContent=`${fmt(currentTime)} / ${fmt(duration)}`}
