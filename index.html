@@ -213,11 +213,11 @@ function draw(){
   ctx.clearRect(0,0,canvasW,canvasH);
   const w=canvasW,h=canvasH, usableH=keyTop;
   // Subtle piano-roll lanes and horizontal timing guides.
-  const whiteW = w / WHITE_PITCHES.length;
+  const keyboardWhiteW = w / whiteNotes.length;
 
   for(let i = 0; i < WHITE_PITCHES.length; i++){
     const m = WHITE_PITCHES[i];
-    const x = i * whiteW;
+    const x = i * keyboardWhiteW;
 
     // Subtle alternating lanes for black-key pitches.
     const nextWhite = WHITE_PITCHES[i + 1];
@@ -317,13 +317,13 @@ function draw(){
     ctx.stroke();
 
     // Label C notes at the bottom of the keyboard.
-    if(pc === 0 && whiteW >= 13){
+    if(pc === 0 && keyboardWhiteW >= 13){
       ctx.fillStyle = "#5e6478";
       ctx.font = "10px system-ui";
       ctx.textAlign = "center";
       ctx.fillText(
         "C" + (Math.floor(m / 12) - 1),
-        x + whiteW / 2,
+        x + keyboardWhiteW / 2,
         keyTop + kbH - 8
       );
     }
@@ -347,7 +347,7 @@ function draw(){
   }
 
   // Black keys sit between the correct white keys.
-  const blackW = whiteW * 0.56;
+  const blackW = keyboardWhiteW * 0.56;
   const blackH = kbH * 0.62;
 
   for(const {m, pc} of blackNotes){
