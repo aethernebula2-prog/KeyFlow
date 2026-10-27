@@ -215,28 +215,99 @@ function draw(){
     ctx.globalAlpha=1;
   }
   // Keyboard: white keys first, then black keys above them.
-  const kbH=h-keyTop;
-  ctx.fillStyle="#f4f5fa";ctx.fillRect(0,keyTop,w,kbH);
-  for(let m=LOW;m<=HIGH;m++){
-    const x=(m-LOW)*keyW;
+
+  // Realistic 88-key piano keyboard: 52 white keys + 36 black keys.
+  const kbH = h - keyTop;
+  const whiteNotes = [];
+  const blackNotes = [];
+  const whitePitchClasses = [0, 2, 4, 5, 7, 9, 11];
+
+  for(let m = LOW; m <= HIGH; m++){
+    const pc = m % 12;
+    const x = (m - LOW) * keyW;
+
     if(!isBlack(m)){
-      ctx.fillStyle="#f5f6fb";ctx.fillRect(x,keyTop,keyW,kbH);
-      ctx.strokeStyle="#9da3b5";ctx.lineWidth=.65;ctx.strokeRect(x,keyTop,keyW,kbH);
-      if(m%12===0){ctx.fillStyle="#5e6478";ctx.font="10px system-ui";ctx.textAlign="center";ctx.fillText("C"+(Math.floor(m/12)-1),x+keyW*1.7,keyTop+kbH-8)}
+      whiteNotes.push({m, pc, x});
+    }else{
+      blackNotes.push({m, pc, x});
     }
   }
-  const activeNow=visible.filter(n=>n.time<=currentTime&&n.time+n.duration>=currentTime);
-  for(const n of activeNow){const x=(n.midi-LOW)*keyW;ctx.fillStyle=tracks[n.track]?.color||palette[0];ctx.globalAlpha=.75;ctx.fillRect(x,keyTop,keyW,kbH);ctx.globalAlpha=1}
-  for(let m=LOW;m<=HIGH;m++){
-    if(!isBlack(m))continue;
-    const x=(m-LOW)*keyW;
-    const bw=keyW*.62,bh=kbH*.62;
-    const isActive=activeNow.some(n=>n.midi===m);
-    ctx.fillStyle=isActive?(tracks[activeNow.find(n=>n.midi===m)?.track]?.color||"#8b7cff"):"#151824";
-    roundRect(ctx,x-bw/2,keyTop,bw,bh,2);ctx.fill();
-    ctx.strokeStyle="#05060b";ctx.strokeRect(x-bw/2,keyTop,bw,bh);
+
+  // Draw the entire keyboard base.
+  ctx.fillStyle = "#f4f5fa";
+  ctx.fillRect(0, keyTop, w, kbH);
+
+  // White keys are evenly spaced by their actual white-key sequence,
+  // not by the 88-semitone grid.
+  const whiteW = w / whiteNotes.length;
+
+  for(let i = 0; i < whiteNotes.length; i++){
+    const {m, pc} = whiteNotes[i];
+    const x = i * whiteW;
+
+    ctx.fillStyle = "#f7f8fc";
+    ctx.fillRect(x, keyTop, whiteW, kbH);
+
+    ctx.strokeStyle = "#8f96a9";
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(x, keyTop);
+    ctx.lineTo(x, h);
+    ctx.stroke();
+
+    // Label C notes at the bottom of the keyboard.
+    if(pc === 0 && whiteW >= 13){
+      ctx.fillStyle = "#5e6478";
+      ctx.font = "10px system-ui";
+      ctx.textAlign = "center";
+      ctx.fillText(
+        "C" + (Math.floor(m / 12) - 1),
+        x + whiteW / 2,
+        keyTop + kbH - 8
+      );
+    }
   }
-  ctx.strokeStyle="#ffffff35";ctx.beginPath();ctx.moveTo(0,keyTop);ctx.lineTo(w,keyTop);ctx.stroke();
+
+  // Highlight notes currently playing on the white keys.
+  const activeNow = visible.filter(
+    n => n.time <= currentTime && n.time + n.duration >= currentTime
+  );
+
+  for(const n of activeNow){
+    if(isBlack(n.midi)) continue;
+
+    const index = whiteNotes.findIndex(k => k.m === n.midi);
+    if(index < 0) continue;
+
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = tracks[n.track]?.color || palette[0];
+    ctx.fillRect(index * whiteW, keyTop, whiteW, kbH);
+    ctx.globalAlpha = 1;
+  }
+
+  // Black keys sit between the correct white keys.
+  const blackW = whiteW * 0.62;
+  const blackH = kbH * 0.62;
+
+  for(const {m, pc} of blackNotes){
+    const index = whiteNotes.findIndex(k => k.m > m);
+
+    if(index < 0) continue;
+
+    const x = index * whiteW - blackW / 2;
+    const active = activeNow.some(n => n.midi === m);
+
+    ctx.fillStyle = active
+      ? (tracks[activeNow.find(n => n.midi === m)?.track]?.color || "#8b7cff")
+      : "#171a27";
+
+    roundRect(ctx, x, keyTop, blackW, blackH, 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#05060b";
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
   
   if(playing){
     currentTime = playbackPosition();
