@@ -106,6 +106,33 @@ let pixelsPerSecond = 115, keyTop = 0, canvasW = 0, canvasH = 0, dpr = 1;
 const LOW = 21, HIGH = 108, RANGE = HIGH - LOW + 1;
 const palette = ["#8b7cff","#56c9ff","#ff7ab6","#69e0b1","#ffc66d","#a9a0ff","#6fe0ed","#ff9587"];
 const isBlack = n => [1,3,6,8,10].includes(n % 12);
+const WHITE_PITCHES = Array.from(
+  { length: RANGE },
+  (_, i) => LOW + i
+).filter(m => !isBlack(m));
+
+function pianoKeyCenter(midi, width) {
+  const whiteW = width / WHITE_PITCHES.length;
+  const index = WHITE_PITCHES.indexOf(midi);
+
+  // White keys: use their actual centers.
+  if (index !== -1) {
+    return (index + 0.5) * whiteW;
+  }
+
+  // Black keys: center them between their neighboring white keys.
+  const nextWhite = WHITE_PITCHES.find(m => m > midi);
+  if (nextWhite !== undefined) {
+    return WHITE_PITCHES.indexOf(nextWhite) * whiteW;
+  }
+
+  return width - whiteW * 0.5;
+}
+
+function pianoKeyWidth(midi, width) {
+  const whiteW = width / WHITE_PITCHES.length;
+  return whiteW * (isBlack(midi) ? 0.56 : 0.84);
+}
 const fmt = t => {t=Math.max(0,Math.floor(t||0));return String(Math.floor(t/60)).padStart(2,"0")+":"+String(t%60).padStart(2,"0")};
 function toast(message){const el=$("toast");el.textContent=message;el.style.display="block";clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.style.display="none",3200)}
 function enterStage(){landing.style.display="none";app.classList.add("active");resizeCanvas();requestAnimationFrame(draw)}
@@ -186,12 +213,47 @@ function draw(){
   ctx.clearRect(0,0,canvasW,canvasH);
   const w=canvasW,h=canvasH, usableH=keyTop;
   // Subtle piano-roll lanes and horizontal timing guides.
-  const keyW=w/RANGE;
-  for(let m=LOW;m<=HIGH;m++){
-    const x=(m-LOW)*keyW;
-    if(isBlack(m)) {ctx.fillStyle="#ffffff05";ctx.fillRect(x,0,keyW,usableH)}
-    if(m%12===0){ctx.strokeStyle="#ffffff0c";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,usableH);ctx.stroke()}
+  const whiteW = w / WHITE_PITCHES.length;
+
+  for(let i = 0; i < WHITE_PITCHES.length; i++){
+    const m = WHITE_PITCHES[i];
+    const x = i * whiteW;
+
+    // Subtle alternating lanes for black-key pitches.
+    const nextWhite = WHITE_PITCHES[i + 1];
+    if(nextWhite !== undefined){
+      const blackPitch = m + 1;
+      if(isBlack(blackPitch)){
+        const bx = pianoKeyCenter(blackPitch, w);
+        const bw = pianoKeyWidth(blackPitch, w);
+        ctx.fillStyle = "#ffffff05";
+        ctx.fillRect(bx - bw / 2, 0, bw, usableH);
+      }
+    }
+
+    // Vertical lines at white-key boundaries.
+    ctx.strokeStyle = "#ffffff0c";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, usableH);
+    ctx.stroke();
+
+    // Stronger octave divider at each C key.
+    if(m % 12 === 0){
+      ctx.strokeStyle = "#ffffff20";
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, usableH);
+      ctx.stroke();
+    }
   }
+  // Right edge of the final white-key lane.
+  ctx.strokeStyle = "#ffffff0c";
+  ctx.beginPath();
+  ctx.moveTo(w, 0);
+  ctx.lineTo(w, usableH);
+  ctx.stroke();
   const secondsVisible=usableH/pixelsPerSecond;
   const firstBeat= Math.floor(currentTime*2)/2;
   for(let t=Math.max(0,firstBeat-1);t<currentTime+secondsVisible;t+=.5){
@@ -202,8 +264,8 @@ function draw(){
   }
   const visible=getActiveNotes();
   for(const n of visible){
-    const x=(n.midi-LOW)*keyW+keyW*.08;
-    const nw=Math.max(2,keyW*.84);
+    const nw = pianoKeyWidth(n.midi, w);
+    const x = pianoKeyCenter(n.midi, w) - nw / 2;
     const y=keyTop-(n.time-currentTime)*pixelsPerSecond-n.duration*pixelsPerSecond;
     const nh=Math.max(4,n.duration*pixelsPerSecond);
     if(y>keyTop||y+nh<0)continue;
@@ -224,7 +286,6 @@ function draw(){
 
   for(let m = LOW; m <= HIGH; m++){
     const pc = m % 12;
-    const x = (m - LOW) * keyW;
 
     if(!isBlack(m)){
       whiteNotes.push({m, pc, x});
@@ -286,7 +347,7 @@ function draw(){
   }
 
   // Black keys sit between the correct white keys.
-  const blackW = whiteW * 0.62;
+  const blackW = whiteW * 0.56;
   const blackH = kbH * 0.62;
 
   for(const {m, pc} of blackNotes){
