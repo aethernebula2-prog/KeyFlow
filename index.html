@@ -101,6 +101,7 @@ const stage = $("stage");
 let midiData = null, notes = [], tracks = [], duration = 0, currentTime = 0;
 let playing = false, startedAt = 0, startPosition = 0, raf = 0, lastScheduled = -1;
 let synth = null, audioReady = false, seeking = false, hideTimer = 0;
+let scheduledNotes = new Set();
 let pixelsPerSecond = 115, keyTop = 0, canvasW = 0, canvasH = 0, dpr = 1;
 const LOW = 21, HIGH = 108, RANGE = HIGH - LOW + 1;
 const palette = ["#8b7cff","#56c9ff","#ff7ab6","#69e0b1","#ffc66d","#a9a0ff","#6fe0ed","#ff9587"];
@@ -235,46 +236,216 @@ function draw(){
     roundRect(ctx,x-bw/2,keyTop,bw,bh,2);ctx.fill();
     ctx.strokeStyle="#05060b";ctx.strokeRect(x-bw/2,keyTop,bw,bh);
   }
-  // Playback line at the keyboard edge.
   ctx.strokeStyle="#ffffff35";ctx.beginPath();ctx.moveTo(0,keyTop);ctx.lineTo(w,keyTop);ctx.stroke();
-  if(playing){currentTime=playbackPosition();if(currentTime>=duration){currentTime=duration;pausePlayback();$("playBtn").textContent="▶"}updateTime();if(!$("seek").matches(":active"))$("seek").value=duration?currentTime/duration*1000:0}
+  
+  if(playing){
+    currentTime = playbackPosition();
+    
+    if(currentTime >= duration){
+      currentTime = duration;
+      pausePlayback();
+    }else{
+      scheduleNotes(
+        currentTime,
+        currentTime + .12 * Number($("speed").value || 1)
+      );
+    }
+    
+    updateTime();
+    
+    if(!$("seek").matches(":active")){
+      $("seek").value = duration ? currentTime / duration * 1000 : 0;
+    }
+}
+
   
 }
 function roundRect(c,x,y,w,h,r){if(w<=0||h<=0)return;c.beginPath();c.roundRect(x,y,w,h,Math.min(r,w/2,h/2));}
 function playbackPosition(){return startPosition+(performance.now()-startedAt)/1000*Number($("speed").value||1)}
 function updateTime(){$("timeLabel").textContent=`${fmt(currentTime)} / ${fmt(duration)}`}
+
 async function ensureAudio(){
-  if(!window.Tone)throw new Error("Tone.js did not load. Check your internet connection and reload.");
+  if(!window.Tone){
+    throw new Error("Tone.js did not load. Check your internet connection and reload.");
+  }
+
   await Tone.start();
-  if(!synth){synth=new Tone.PolySynth(Tone.Synth,{oscillator:{type:"triangle"},envelope:{attack:.008,decay:.12,sustain:.25,release:.65}}).toDestination();synth.volume.value=-8}
-  audioReady=true;
+
+  if(!synth){
+    try{
+      synth = new Tone.Sampler({
+        urls:{
+          A0:"A0.mp3",
+          C1:"C1.mp3",
+          "D#1":"Ds1.mp3",
+          "F#1":"Fs1.mp3",
+          A1:"A1.mp3",
+          C2:"C2.mp3",
+          "D#2":"Ds2.mp3",
+          "F#2":"Fs2.mp3",
+          A2:"A2.mp3",
+          C3:"C3.mp3",
+          "D#3":"Ds3.mp3",
+          "F#3":"Fs3.mp3",
+          A3:"A3.mp3",
+          C4:"C4.mp3",
+          "D#4":"Ds4.mp3",
+          "F#4":"Fs4.mp3",
+          A4:"A4.mp3",
+          C5:"C5.mp3",
+          "D#5":"Ds5.mp3",
+          "F#5":"Fs5.mp3",
+          A5:"A5.mp3",
+          C6:"C6.mp3",
+          "D#6":"Ds6.mp3",
+          "F#6":"Fs6.mp3",
+          A6:"A6.mp3",
+          C7:"C7.mp3",
+          "D#7":"Ds7.mp3",
+          "F#7":"Fs7.mp3",
+          A7:"A7.mp3",
+          C8:"C8.mp3"
+        },
+        baseUrl:"https://tonejs.github.io/audio/salamander/",
+        release:1
+      }).toDestination();
+
+      synth.volume.value = -8;
+
+      try{
+        $("loadStatus").textContent = "Loading piano samples…";
+        await Tone.loaded();
+      }catch(sampleError){
+        synth.dispose();
+        synth = null;
+        throw sampleError;
+      }
+
+    }catch(sampleError){
+      if(synth){
+        try{synth.dispose()}catch{}
+        synth = null;
+      }
+
+      synth = new Tone.PolySynth(Tone.Synth,{
+        oscillator:{type:"triangle"},
+        envelope:{
+          attack:.008,
+          decay:.12,
+          sustain:.25,
+          release:.65
+        }
+      }).toDestination();
+
+      synth.volume.value = -8;
+      toast("Piano samples unavailable. Using backup sound.");
+    }
+  }
+
+  audioReady = true;
 }
+
 function scheduleNotes(from,to){
-  const active=notes;
-  for(const n of active){
-    if(n.time<from-.01||n.time>to)continue;
-    const when=Tone.now()+Math.max(0,(n.time-from)/(Number($("speed").value||1)));
-    const speed=Number($("speed").value||1);
-    try{synth.triggerAttackRelease(Tone.Frequency(n.midi,"midi").toNote(),Math.max(.05,n.duration/speed),when,n.velocity)}catch{}
+  if(!synth || !playing)return;
+
+  const speed = Number($("speed").value || 1);
+  const audioNow = Tone.now();
+
+  for(const n of notes){
+    if(scheduledNotes.has(n))continue;
+    if(n.time < from - .015 || n.time > to)continue;
+
+    scheduledNotes.add(n);
+
+    const when = audioNow + Math.max(0,(n.time-from)/speed);
+    const noteDuration = Math.max(.05,n.duration/speed);
+
+    try{
+      synth.triggerAttackRelease(
+        Tone.Frequency(n.midi,"midi").toNote(),
+        noteDuration,
+        when,
+        n.velocity
+      );
+    }catch(error){
+      console.warn("Could not schedule MIDI note:",error);
+    }
   }
 }
+
 async function play(){
-  if(!midiData){toast("Select a MIDI file first.");return}
+  if(!midiData){
+    toast("Select a MIDI file first.");
+    return;
+  }
+
+  if(playing)return;
+
   try{
     await ensureAudio();
-    if(currentTime>=duration)currentTime=0;
-    playing=true;startPosition=currentTime;startedAt=performance.now();
-    scheduleNotes(currentTime,currentTime+Math.max(2,duration-currentTime));
-    $("playBtn").textContent="Ⅱ";$("loadStatus").textContent="Playing";
-  }catch(e){toast(e.message||"Audio could not start. Click Play again.");}
+
+    if(currentTime >= duration)currentTime = 0;
+
+    scheduledNotes.clear();
+    playing = true;
+    startPosition = currentTime;
+    startedAt = performance.now();
+
+    scheduleNotes(
+      currentTime,
+      currentTime + .12 * Number($("speed").value || 1)
+    );
+
+    $("playBtn").textContent = "Ⅱ";
+    $("loadStatus").textContent = "Playing";
+  }catch(error){
+    playing = false;
+    $("playBtn").textContent = "▶";
+    toast(error.message || "Audio could not start. Click Play again.");
+  }
 }
-function pausePlayback(){if(playing){currentTime=playbackPosition();playing=false}if(synth){try{synth.releaseAll()}catch{}}$("playBtn").textContent="▶";if(midiData)$("loadStatus").textContent="Paused"}
+
+function pausePlayback(){
+  if(playing){
+    currentTime = playbackPosition();
+    playing = false;
+  }
+
+  if(synth){
+    try{synth.releaseAll()}catch{}
+  }
+
+  scheduledNotes.clear();
+
+  $("playBtn").textContent = "▶";
+
+  if(midiData)$("loadStatus").textContent = "Paused";
+
+  updateTime();
+}
 $("playBtn").addEventListener("click",()=>playing?pausePlayback():play());
 $("stopBtn").addEventListener("click",()=>{pausePlayback();currentTime=0;startPosition=0;$("seek").value=0;updateTime();draw()});
 $("replayBtn").addEventListener("click",()=>{pausePlayback();currentTime=0;startPosition=0;$("seek").value=0;updateTime();play()});
 $("seek").addEventListener("input",e=>{seeking=true;pausePlayback();currentTime=duration*Number(e.target.value)/1000;startPosition=currentTime;updateTime();draw()});
 $("seek").addEventListener("change",()=>{seeking=false;lastScheduled=-1});
-$("speed").addEventListener("change",()=>{if(playing){currentTime=playbackPosition();startPosition=currentTime;startedAt=performance.now();if(synth){try{synth.releaseAll()}catch{}}scheduleNotes(currentTime,currentTime+Math.max(2,duration-currentTime))}});
+$("speed").addEventListener("change",()=>{
+  if(playing){
+    currentTime = playbackPosition();
+    startPosition = currentTime;
+    startedAt = performance.now();
+
+    if(synth){
+      try{synth.releaseAll()}catch{}
+    }
+
+    scheduledNotes.clear();
+
+    scheduleNotes(
+      currentTime,
+      currentTime + .12 * Number($("speed").value || 1)
+    );
+  }
+});
 document.addEventListener("keydown",e=>{
   if(e.code==="Space"&&!["INPUT","BUTTON","SELECT","TEXTAREA"].includes(document.activeElement?.tagName)){e.preventDefault();playing?pausePlayback():play()}
   if(e.key==="f"||e.key==="F"){if(app.classList.contains("active"))toggleFullscreen()}
