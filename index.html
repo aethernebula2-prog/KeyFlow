@@ -166,10 +166,12 @@ function pianoKeyCenter(midi, width) {
   const whiteW = width / displayWhitePitches.length;
   const index = displayWhitePitches.indexOf(midi);
 
+  // White keys: use their actual centers.
   if (index !== -1) {
     return (index + 0.5) * whiteW;
   }
 
+  // Black keys: center them between their neighboring white keys.
   const nextWhite = displayWhitePitches.find(m => m > midi);
 
   if (nextWhite !== undefined) {
@@ -178,21 +180,6 @@ function pianoKeyCenter(midi, width) {
 
   return width - whiteW * 0.5;
 }
-
-  // White keys: use their actual centers.
-  if (index !== -1) {
-    return (index + 0.5) * whiteW;
-  }
-
-  // Black keys: center them between their neighboring white keys.
-  const nextWhite = WHITE_PITCHES.find(m => m > midi);
-  if (nextWhite !== undefined) {
-    return WHITE_PITCHES.indexOf(nextWhite) * whiteW;
-  }
-
-  return width - whiteW * 0.5;
-}
-
 function pianoKeyWidth(midi, width) {
   const whiteW = width / displayWhitePitches.length;
   return whiteW * (isBlack(midi) ? 0.56 : 0.84);
