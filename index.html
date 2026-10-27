@@ -145,6 +145,7 @@ const $ = id => document.getElementById(id);
 const landing = $("landing"), app = $("app"), canvas = $("roll"), ctx = canvas.getContext("2d");
 const fileInput = $("fileInput"), fileInput2 = $("fileInput2");
 const stage = $("stage");
+const impactEffects = new Map();
 let midiData = null, notes = [], tracks = [], duration = 0, currentTime = 0;
 let playing = false, startedAt = 0, startPosition = 0, raf = 0, lastScheduled = -1;
 let synth = null, audioReady = false, seeking = false, hideTimer = 0;
@@ -367,6 +368,22 @@ function draw(){
   }
 
   const visible = getActiveNotes();
+
+  const now = performance.now();
+    
+  for (const n of visible) {
+    const key = `${n.track}-${n.midi}-${n.time}`;
+    
+    const impactY =
+      keyTop -
+      (n.time - currentTime) * pixelsPerSecond;
+    
+    if (impactY >= keyTop && impactY <= keyTop + 8) {
+      if (!impactEffects.has(key)) {
+        impactEffects.set(key, now);
+      }
+    }
+  }
   
 for (const n of visible) {
   // Keep the existing transpose and piano-key alignment.
@@ -449,8 +466,6 @@ for (const n of visible) {
     ctx.restore();
 }
 
-
-  // Prepare the keyboard BEFORE calculating its width.
   const kbH = h - keyTop;
   const whiteNotes = [];
   const blackNotes = [];
@@ -469,11 +484,9 @@ for (const n of visible) {
   const blackW = keyboardWhiteW * 0.56;
   const blackH = kbH * 0.62;
 
-  // Keyboard base.
   ctx.fillStyle = "#f4f5fa";
   ctx.fillRect(0, keyTop, w, kbH);
 
-  // Draw white keys.
   for(let i = 0; i < whiteNotes.length; i++){
     const {m, pc} = whiteNotes[i];
     const x = i * keyboardWhiteW;
@@ -500,7 +513,6 @@ for (const n of visible) {
     }
   }
 
-  // Highlight currently playing white keys.
   const activeNow = visible.filter(
     n => n.time <= currentTime &&
          n.time + n.duration >= currentTime
@@ -525,7 +537,6 @@ for (const n of visible) {
     ctx.globalAlpha = 1;
   }
 
-  // Draw black keys over the white keys.
   for(const {m} of blackNotes){
     const index = whiteNotes.findIndex(k => k.m > m);
     if(index < 0) continue;
@@ -547,7 +558,6 @@ for (const n of visible) {
     ctx.stroke();
   }
 
-  // Advance playback and schedule audio.
   if(playing){
     currentTime = playbackPosition();
 
@@ -559,6 +569,63 @@ for (const n of visible) {
         currentTime,
         currentTime + 0.12 * Number($("speed").value || 1)
       );
+    }
+    
+    const now = performance.now();
+    const impactDuration = 380;
+    
+    for (const [key, start] of impactEffects) {
+      const elapsed = now - start;
+      const progress = elapsed / impactDuration;
+    
+      if (progress >= 1) {
+        impactEffects.delete(key);
+        continue;
+      }
+    
+      const parts = key.split("-");
+      const midi = Number(parts[1]);
+      const cx = pianoKeyCenter(
+        midi + transposeSemitones,
+        w
+      );
+    
+      const alpha = 1 - progress;
+      const spread = 8 + progress * 30;
+    
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.globalCompositeOperation = "lighter";
+    
+      // Soft white glow
+      ctx.shadowColor = "#ffffff";
+      ctx.shadowBlur = 12 * alpha + 2;
+      ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+      ctx.lineWidth = 2.5 * (1 - progress) + 0.5;
+    
+      // Expanding horizontal energy ring
+      ctx.beginPath();
+      ctx.ellipse(
+        cx,
+        keyTop + 2,
+        spread,
+        3 + progress * 5,
+        0,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+    
+      // Bright central flash
+      ctx.shadowBlur = 18 * alpha;
+      ctx.fillStyle = `rgba(255,255,255,${alpha * 0.7})`;
+      ctx.fillRect(cx - 3, keyTop - 2, 6, 4);
+    
+      ctx.restore();
+    }
+    
+    if (impactEffects.size > 0) {
+      requestAnimationFrame(draw);
     }
 
     updateTime();
