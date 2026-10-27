@@ -389,7 +389,14 @@ for (const n of visible) {
 
   ctx.save();
 
-  // 1. Large, intense outer laser glow.
+  const glassGradient = ctx.createLinearGradient(x, y, x + nw, y);
+
+  glassGradient.addColorStop(0, "#ffffff18");
+  glassGradient.addColorStop(0.18, color);
+  glassGradient.addColorStop(0.5, "#ffffff38");
+  glassGradient.addColorStop(0.78, color);
+  glassGradient.addColorStop(1, "#ffffff20");
+
   ctx.globalAlpha = 0.95;
   ctx.shadowColor = color;
   ctx.shadowBlur = 30;
@@ -397,54 +404,63 @@ for (const n of visible) {
   roundRect(ctx, x, y, nw, nh, radius);
   ctx.fill();
 
-  // 2. Brighter inner beam.
-  ctx.shadowBlur = 18;
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = color;
+  ctx.shadowBlur = 22;
+  ctx.globalAlpha = 0.78;
+  ctx.fillStyle = glassGradient;
   roundRect(
     ctx,
-    x + nw * 0.12,
-    y,
-    Math.max(1, nw * 0.76),
-    nh,
+    x + 1,
+    y + 1,
+    Math.max(1, nw - 2),
+    Math.max(2, nh - 2),
     radius
   );
   ctx.fill();
 
+  ctx.shadowBlur = 12;
+  ctx.globalAlpha = 0.95;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1, nw * 0.07);
+  roundRect(ctx, x + 0.5, y + 0.5, nw - 1, nh - 1, radius);
+  ctx.stroke();
+
   ctx.shadowColor = "#ffffff";
-  ctx.shadowBlur = 5;
-  ctx.globalAlpha = 0.45;
-  ctx.fillStyle = "#e5e7ff";
+  ctx.shadowBlur = 8;
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = "#ffffff";
   roundRect(
     ctx,
-    x + nw * 0.35,
-    y + 1,
-    Math.max(1, nw * 0.16),
-    Math.max(2, nh - 2),
-    Math.min(3, nw * 0.1)
+    x + nw * 0.16,
+    y + 2,
+    Math.max(1, nw * 0.68),
+    Math.max(1.5, Math.min(4, nh * 0.16)),
+    Math.min(2, radius)
   );
   ctx.fill();
 
-  // 4. Subtle colored edge restores the track color.
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 10;
-  ctx.globalAlpha = 0.9;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(1, nw * 0.07);
-  roundRect(ctx, x, y, nw, nh, radius);
-  ctx.stroke();
+  ctx.shadowBlur = 5;
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = "#ffffff";
+  roundRect(
+    ctx,
+    x + nw * 0.2,
+    y + 5,
+    Math.max(1, nw * 0.08),
+    Math.max(1, nh - 10),
+    1
+  );
+  ctx.fill();
 
-  // Keep note labels for larger notes.
   if (nh > 24 && nw > 25) {
     ctx.shadowBlur = 0;
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = "#101322";
+    ctx.globalAlpha = 0.95;
+    ctx.fillStyle = "#ffffff";
     ctx.font = "10px system-ui";
     ctx.fillText(n.name, x + 5, y + 14, nw - 8);
   }
 
   ctx.restore();
-}
+
 
   // Prepare the keyboard BEFORE calculating its width.
   const kbH = h - keyTop;
