@@ -366,13 +366,17 @@ function draw(){
     ctx.stroke();
   }
 
-  // Draw falling notes aligned to their actual piano keys.
+  
+  // Draw falling notes with intense neon tube effects.
   const visible = getActiveNotes();
 
-  for(const n of visible){
+  ctx.save();
+
+  for (const n of visible) {
     const shiftedMidi = n.midi + transposeSemitones;
     const nw = pianoKeyWidth(shiftedMidi, w);
     const x = pianoKeyCenter(shiftedMidi, w) - nw / 2;
+
     const y =
       keyTop -
       (n.time - currentTime) * pixelsPerSecond -
@@ -380,41 +384,97 @@ function draw(){
 
     const nh = Math.max(4, n.duration * pixelsPerSecond);
 
-    if(y > keyTop || y + nh < 0) continue;
+    if (y > keyTop || y + nh < 0) continue;
 
     const color = tracks[n.track]?.color || palette[0];
+    const radius = Math.min(5, nw * 0.22);
 
-    ctx.globalAlpha = 0.95;
+    ctx.save();
+    ctx.globalAlpha = 1;
+
+    // 1. Wide, intense outer glow.
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 28;
     ctx.fillStyle = color;
-    roundRect(ctx, x, y, nw, nh, Math.min(5, nw * 0.22));
+    roundRect(ctx, x + 1, y, Math.max(1, nw - 2), nh, radius);
     ctx.fill();
 
-    ctx.globalAlpha = 0.35;
+    // 2. A second, tighter glow for a luminous tube edge.
+    ctx.shadowBlur = 12;
+    ctx.globalAlpha = 0.95;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1.5, Math.min(3, nw * 0.09));
+    roundRect(
+      ctx,
+      x + 1.5,
+      y + 0.5,
+      Math.max(1, nw - 3),
+      Math.max(1, nh - 1),
+      radius
+    );
+    ctx.stroke();
+
+    // 3. Darker translucent center, preserving the track color
+    // around the edges like a neon glass tube.
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 0.78;
+    ctx.fillStyle = "#101322";
+    roundRect(
+      ctx,
+      x + nw * 0.13,
+      y + 2,
+      Math.max(1, nw * 0.74),
+      Math.max(1, nh - 4),
+      Math.min(3, radius)
+    );
+    ctx.fill();
+
+    // 4. Bright inner core.
+    ctx.globalAlpha = 0.95;
+    ctx.fillStyle = color;
+    roundRect(
+      ctx,
+      x + nw * 0.28,
+      y + 2,
+      Math.max(1, nw * 0.44),
+      Math.max(1, nh - 4),
+      Math.min(3, radius)
+    );
+    ctx.fill();
+
+    // 5. Thin white highlight for a glass-tube reflection.
+    ctx.globalAlpha = 0.9;
     ctx.fillStyle = "#ffffff";
     roundRect(
       ctx,
-      x + nw * 0.16,
-      y + 2,
-      Math.max(1, nw * 0.14),
-      Math.max(0, nh - 4),
+      x + nw * 0.32,
+      y + 3,
+      Math.max(1, nw * 0.09),
+      Math.max(1, nh - 6),
       2
     );
     ctx.fill();
 
-    if(nh > 24 && nw > 25){
-      ctx.globalAlpha = 0.95;
-      ctx.fillStyle = "#101322";
+    // 6. Keep note names visible on larger notes.
+    if (nh > 28 && nw > 25) {
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#ffffff";
       ctx.font = "10px system-ui";
+      ctx.textAlign = "left";
       ctx.fillText(
         midiToName(shiftedMidi),
         x + 5,
         y + 14,
-        nw - 8
+        nw - 10
       );
     }
 
-    ctx.globalAlpha = 1;
+    ctx.restore();
   }
+
+  ctx.restore();
+
 
   // Prepare the keyboard BEFORE calculating its width.
   const kbH = h - keyTop;
