@@ -30,6 +30,44 @@ h1{font-size:clamp(36px,6vw,64px);letter-spacing:-.055em;line-height:1.02;margin
 #playBtn{width:44px;height:44px;border-radius:50%;padding:0;font-size:18px;background:#8170ff}
 #timeLabel{font-size:12px;color:#c4c9da;white-space:nowrap;font-variant-numeric:tabular-nums}
 #seek{width:100%;accent-color:#8b7cff;cursor:pointer}#seekWrap{flex:1;min-width:50px;display:flex;align-items:center}
+#transposeControl{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  padding:4px 7px;
+  border:1px solid #30364b;
+  border-radius:11px;
+  background:#151a28;
+  flex-shrink:0;
+}
+#transposeControl .transposeLabel{
+  color:var(--muted);
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.06em;
+}
+#transposeControl button{
+  width:28px;
+  height:30px;
+  padding:0;
+  border-radius:7px;
+  font-size:17px;
+  background:#252b3d;
+}
+#transposeValue{
+  min-width:45px;
+  text-align:center;
+  font-size:12px;
+  font-weight:750;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+@media(max-width:650px){
+  #transposeControl{gap:3px;padding:3px}
+  #transposeControl .transposeLabel{display:none}
+  #transposeControl button{width:25px;height:29px}
+  #transposeValue{min-width:38px;font-size:11px}
+}
 .smallselect{background:#1b2030;color:#e4e7f3;border:1px solid #30364b;border-radius:10px;padding:9px 8px;font-size:12px}
 #trackMenu{display:none;position:absolute;top:68px;right:16px;z-index:5;background:#171b29;border:1px solid #34394d;border-radius:14px;padding:14px;max-height:60vh;overflow:auto;min-width:220px;box-shadow:0 18px 50px #0008}
 #trackMenu.open{display:block}.trackrow{display:flex;gap:8px;align-items:center;padding:7px 0;font-size:12px;color:#dce0ef}.trackrow input{accent-color:#8b7cff}
@@ -84,6 +122,12 @@ h1{font-size:clamp(36px,6vw,64px);letter-spacing:-.055em;line-height:1.02;margin
     <button id="stopBtn" class="iconbtn" title="Stop and return to start" aria-label="Stop">■</button>
     <span id="timeLabel">00:00 / 00:00</span>
     <div id="seekWrap"><input id="seek" type="range" min="0" max="1000" value="0" aria-label="Playback position"></div>
+    <div id="transposeControl" title="Change the pitch without modifying the MIDI file">
+      <span class="transposeLabel">KEY</span>
+      <button id="transposeDown" type="button" aria-label="Lower pitch by one semitone">−</button>
+      <span id="transposeValue">0</span>
+      <button id="transposeUp" type="button" aria-label="Raise pitch by one semitone">+</button>
+    </div>
     <select id="speed" class="smallselect" aria-label="Playback speed" title="Playback speed"><option value=".5">0.5×</option><option value=".75">0.75×</option><option value="1" selected>1.0×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2.0×</option></select>
     <button id="replayBtn" class="iconbtn" title="Restart" aria-label="Restart">↺</button>
   </footer>
@@ -104,6 +148,10 @@ let synth = null, audioReady = false, seeking = false, hideTimer = 0;
 let scheduledNotes = new Set();
 let pixelsPerSecond = 115, keyTop = 0, canvasW = 0, canvasH = 0, dpr = 1;
 const LOW = 21, HIGH = 108, RANGE = HIGH - LOW + 1;
+let transposeSemitones = 0;
+let displayLow = LOW;
+let displayHigh = HIGH;
+let displayWhitePitches = WHITE_PITCHES;
 const palette = ["#8b7cff","#56c9ff","#ff7ab6","#69e0b1","#ffc66d","#a9a0ff","#6fe0ed","#ff9587"];
 const isBlack = n => [1,3,6,8,10].includes(n % 12);
 const WHITE_PITCHES = Array.from(
@@ -112,8 +160,21 @@ const WHITE_PITCHES = Array.from(
 ).filter(m => !isBlack(m));
 
 function pianoKeyCenter(midi, width) {
-  const whiteW = width / WHITE_PITCHES.length;
-  const index = WHITE_PITCHES.indexOf(midi);
+  const whiteW = width / displayWhitePitches.length;
+  const index = displayWhitePitches.indexOf(midi);
+
+  if (index !== -1) {
+    return (index + 0.5) * whiteW;
+  }
+
+  const nextWhite = displayWhitePitches.find(m => m > midi);
+
+  if (nextWhite !== undefined) {
+    return displayWhitePitches.indexOf(nextWhite) * whiteW;
+  }
+
+  return width - whiteW * 0.5;
+}
 
   // White keys: use their actual centers.
   if (index !== -1) {
@@ -130,7 +191,7 @@ function pianoKeyCenter(midi, width) {
 }
 
 function pianoKeyWidth(midi, width) {
-  const whiteW = width / WHITE_PITCHES.length;
+  const whiteW = width / displayWhitePitches.length;
   return whiteW * (isBlack(midi) ? 0.56 : 0.84);
 }
 const fmt = t => {t=Math.max(0,Math.floor(t||0));return String(Math.floor(t/60)).padStart(2,"0")+":"+String(t%60).padStart(2,"0")};
@@ -155,6 +216,11 @@ window.addEventListener("resize",resizeCanvas);
 
 async function loadFile(file){
   if(!file)return;
+
+  transposeSemitones = 0;
+  $("transposeValue").textContent = "0";
+  $("transposeDown").disabled = false;
+  $("transposeUp").disabled = false;
   enterStage();$("fullscreenHint").style.display="none";$("loadStatus").textContent="Loading MIDI…";
   $("songName").textContent=file.name; $("emptyState").style.display="none";
   pausePlayback(); currentTime=0;
@@ -208,6 +274,31 @@ function resizeCanvas(){
   draw();
 }
 function getActiveNotes(){return notes}
+function updateDisplayRange() {
+  let minPitch = Infinity;
+  let maxPitch = -Infinity;
+
+  for (const n of notes) {
+    const pitch = n.midi + transposeSemitones;
+    minPitch = Math.min(minPitch, pitch);
+    maxPitch = Math.max(maxPitch, pitch);
+  }
+
+  // Preserve the original 88-key view unless transposed
+  // notes actually extend beyond it.
+  displayLow = minPitch < LOW
+    ? Math.floor(minPitch / 12) * 12
+    : LOW;
+
+  displayHigh = maxPitch > HIGH
+    ? Math.ceil((maxPitch + 1) / 12) * 12 - 1
+    : HIGH;
+
+  displayWhitePitches = Array.from(
+    { length: displayHigh - displayLow + 1 },
+    (_, i) => displayLow + i
+  ).filter(m => !isBlack(m));
+}
 function draw(){
   if(!canvasW || !canvasH) return;
 
@@ -217,17 +308,17 @@ function draw(){
   const h = canvasH;
   const usableH = keyTop;
 
-  // Real piano layout: 52 white keys and 36 black keys.
-  const laneWhiteW = w / WHITE_PITCHES.length;
+  updateDisplayRange();
 
-  // Draw waterfall lanes using the same layout as the keyboard.
-  for(let i = 0; i < WHITE_PITCHES.length; i++){
-    const m = WHITE_PITCHES[i];
+  const laneWhiteW = w / displayWhitePitches.length;
+
+  for(let i = 0; i < displayWhitePitches.length; i++){
+    const m = displayWhitePitches[i];
     const x = i * laneWhiteW;
 
     const blackPitch = m + 1;
 
-    if(isBlack(blackPitch) && blackPitch <= HIGH){
+    if(isBlack(blackPitch) && blackPitch <= displayHigh){
       const bx = pianoKeyCenter(blackPitch, w);
       const bw = pianoKeyWidth(blackPitch, w);
 
@@ -285,8 +376,9 @@ function draw(){
   const visible = getActiveNotes();
 
   for(const n of visible){
-    const nw = pianoKeyWidth(n.midi, w);
-    const x = pianoKeyCenter(n.midi, w) - nw / 2;
+    const shiftedMidi = n.midi + transposeSemitones;
+    const nw = pianoKeyWidth(shiftedMidi, w);
+    const x = pianoKeyCenter(shiftedMidi, w) - nw / 2;
     const y =
       keyTop -
       (n.time - currentTime) * pixelsPerSecond -
@@ -319,7 +411,12 @@ function draw(){
       ctx.globalAlpha = 0.95;
       ctx.fillStyle = "#101322";
       ctx.font = "10px system-ui";
-      ctx.fillText(n.name, x + 5, y + 14, nw - 8);
+      ctx.fillText(
+        midiToName(shiftedMidi),
+        x + 5,
+        y + 14,
+        nw - 8
+      );
     }
 
     ctx.globalAlpha = 1;
@@ -330,7 +427,7 @@ function draw(){
   const whiteNotes = [];
   const blackNotes = [];
 
-  for(let m = LOW; m <= HIGH; m++){
+  for(let m = displayLow; m <= displayHigh; m++){
     const pc = m % 12;
 
     if(isBlack(m)){
@@ -382,9 +479,11 @@ function draw(){
   );
 
   for(const n of activeNow){
-    if(isBlack(n.midi)) continue;
+    const shiftedMidi = n.midi + transposeSemitones;
 
-    const index = whiteNotes.findIndex(k => k.m === n.midi);
+    if(isBlack(shiftedMidi)) continue;
+
+    const index = whiteNotes.findIndex(k => k.m === shiftedMidi);
     if(index < 0) continue;
 
     ctx.globalAlpha = 0.8;
@@ -404,7 +503,9 @@ function draw(){
     if(index < 0) continue;
 
     const x = index * keyboardWhiteW - blackW / 2;
-    const activeNote = activeNow.find(n => n.midi === m);
+    const activeNote = activeNow.find(
+      n => n.midi + transposeSemitones === m
+    );
 
     ctx.fillStyle = activeNote
       ? (tracks[activeNote.track]?.color || "#8b7cff")
@@ -535,16 +636,26 @@ function scheduleNotes(from,to){
 
   for(const n of notes){
     if(scheduledNotes.has(n))continue;
-    if(n.time < from - .015 || n.time > to)continue;
+    if(n.time + n.duration <= from || n.time > to)continue;
 
     scheduledNotes.add(n);
 
     const when = audioNow + Math.max(0,(n.time-from)/speed);
-    const noteDuration = Math.max(.05,n.duration/speed);
+    const remainingDuration = Math.min(
+      n.duration,
+      n.time + n.duration - from
+    );
+    const noteDuration = Math.max(
+      .05,
+      remainingDuration / speed
+    );
 
     try{
       synth.triggerAttackRelease(
-        Tone.Frequency(n.midi,"midi").toNote(),
+        Tone.Frequency(
+          n.midi + transposeSemitones,
+          "midi"
+        ).toNote(),
         noteDuration,
         when,
         n.velocity
@@ -554,6 +665,56 @@ function scheduleNotes(from,to){
     }
   }
 }
+
+function setTranspose(value) {
+  const next = Math.max(-24, Math.min(24, value));
+
+  if (next === transposeSemitones) return;
+
+  // Keep the exact current playback position.
+  if (playing) {
+    currentTime = playbackPosition();
+  }
+
+  transposeSemitones = next;
+
+  const label = transposeSemitones > 0
+    ? `+${transposeSemitones}`
+    : String(transposeSemitones);
+
+  $("transposeValue").textContent = label;
+  $("transposeDown").disabled = transposeSemitones <= -24;
+  $("transposeUp").disabled = transposeSemitones >= 24;
+
+  if (playing) {
+    // Stop scheduled notes in the old key and continue
+    // from the current position using the new pitch.
+    if (synth) {
+      try { synth.releaseAll(); } catch {}
+    }
+
+    scheduledNotes.clear();
+    startPosition = currentTime;
+    startedAt = performance.now();
+
+    scheduleNotes(
+      currentTime,
+      currentTime + 0.12 * Number($("speed").value || 1)
+    );
+  }
+
+  draw();
+}
+
+$("transposeDown").addEventListener(
+  "click",
+  () => setTranspose(transposeSemitones - 1)
+);
+
+$("transposeUp").addEventListener(
+  "click",
+  () => setTranspose(transposeSemitones + 1)
+);
 
 async function play(){
   if(!midiData){
