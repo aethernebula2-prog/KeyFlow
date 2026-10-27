@@ -389,78 +389,66 @@ for (const n of visible) {
 
   ctx.save();
 
-  const glassGradient = ctx.createLinearGradient(x, y, x + nw, y);
-
-  glassGradient.addColorStop(0, "#ffffff18");
-  glassGradient.addColorStop(0.18, color);
-  glassGradient.addColorStop(0.5, "#ffffff38");
-  glassGradient.addColorStop(0.78, color);
-  glassGradient.addColorStop(1, "#ffffff20");
-
-  ctx.globalAlpha = 0.95;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 30;
-  ctx.fillStyle = color;
-  roundRect(ctx, x, y, nw, nh, radius);
-  ctx.fill();
-
-  ctx.shadowBlur = 22;
-  ctx.globalAlpha = 0.78;
-  ctx.fillStyle = glassGradient;
-  roundRect(
-    ctx,
-    x + 1,
-    y + 1,
-    Math.max(1, nw - 2),
-    Math.max(2, nh - 2),
-    radius
-  );
-  ctx.fill();
-
-  ctx.shadowBlur = 12;
-  ctx.globalAlpha = 0.95;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(1, nw * 0.07);
-  roundRect(ctx, x + 0.5, y + 0.5, nw - 1, nh - 1, radius);
-  ctx.stroke();
-
-  ctx.shadowColor = "#ffffff";
-  ctx.shadowBlur = 8;
-  ctx.globalAlpha = 0.55;
-  ctx.fillStyle = "#ffffff";
-  roundRect(
-    ctx,
-    x + nw * 0.16,
-    y + 2,
-    Math.max(1, nw * 0.68),
-    Math.max(1.5, Math.min(4, nh * 0.16)),
-    Math.min(2, radius)
-  );
-  ctx.fill();
-
-  ctx.shadowBlur = 5;
-  ctx.globalAlpha = 0.28;
-  ctx.fillStyle = "#ffffff";
-  roundRect(
-    ctx,
-    x + nw * 0.2,
-    y + 5,
-    Math.max(1, nw * 0.08),
-    Math.max(1, nh - 10),
-    1
-  );
-  ctx.fill();
-
-  if (nh > 24 && nw > 25) {
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 0.95;
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "10px system-ui";
-    ctx.fillText(n.name, x + 5, y + 14, nw - 8);
-  }
-
-  ctx.restore();
-
+    const radius = Math.min(5, nw * 0.22);
+    
+    ctx.globalAlpha = 0.9;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 16;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    roundRect(ctx, x + 1, y + 1, nw - 2, nh - 2, radius);
+    ctx.stroke();
+    
+    // 2. Gradient neon outline.
+    ctx.shadowBlur = 10;
+    
+    const neonGradient = ctx.createLinearGradient(
+      x, y, x + nw, y + nh
+    );
+    
+    neonGradient.addColorStop(0, "#ffffff");
+    neonGradient.addColorStop(0.22, color);
+    neonGradient.addColorStop(0.5, "#b8a5ff");
+    neonGradient.addColorStop(0.78, color);
+    neonGradient.addColorStop(1, "#ffffff");
+    
+    ctx.globalAlpha = 1;
+    ctx.shadowColor = color;
+    ctx.strokeStyle = neonGradient;
+    ctx.lineWidth = Math.max(1.5, Math.min(2.5, nw * 0.09));
+    
+    roundRect(
+      ctx,
+      x + ctx.lineWidth / 2,
+      y + ctx.lineWidth / 2,
+      nw - ctx.lineWidth,
+      nh - ctx.lineWidth,
+      radius
+    );
+    ctx.stroke();
+    
+    // 3. Small bright highlight on the top edge.
+    ctx.shadowColor = "#ffffff";
+    ctx.shadowBlur = 5;
+    ctx.strokeStyle = "#ffffff";
+    ctx.globalAlpha = 0.8;
+    ctx.lineWidth = 1;
+    
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y + 1);
+    ctx.lineTo(x + nw - radius, y + 1);
+    ctx.stroke();
+    
+    // 4. Keep note labels readable.
+    if (nh > 24 && nw > 25) {
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "10px system-ui";
+      ctx.fillText(n.name, x + 5, y + 14, nw - 8);
+    }
+    
+    ctx.restore();
 }
 
 
