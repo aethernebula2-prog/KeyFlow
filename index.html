@@ -411,10 +411,10 @@ for (const n of visible) {
   );
   ctx.fill();
 
-  // 3. White-hot laser core.
   ctx.shadowColor = "#ffffff";
-  ctx.shadowBlur = 12;
-  ctx.fillStyle = "#ffffff";
+  ctx.shadowBlur = 5;
+  ctx.globalAlpha = 0.45;
+  ctx.fillStyle = "#e5e7ff";
   roundRect(
     ctx,
     x + nw * 0.35,
